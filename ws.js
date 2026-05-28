@@ -13,7 +13,6 @@ const NUM_NAMES = [
 
 // 全局状态
 let ws = null;
-let myId = null;
 let myToken = null;
 let myName = "";
 let inRoom = null;    // 当前房间号
@@ -42,7 +41,6 @@ function connect() {
     ws = new WebSocket(WS_URL);
     ws.onopen = () => {
         setStatus("online");
-        // 发送认证
         myToken = getStored("nanaki_token", "");
         send({ type: "auth", token: myToken });
     };
@@ -73,14 +71,13 @@ function setStatus(state) {
     text.textContent = map[state] || state;
 }
 
-// ===== 消息分发 =====
+// ===== 消息分发（按 PROTOCOL.md 对齐） =====
 
 function handleMsg(msg) {
     const type = msg.type;
 
-    // 认证
+    // 认证 — 新协议：auth_ok 只有 token，没有 player_id
     if (type === "auth_ok") {
-        myId = msg.player_id;
         myToken = msg.token;
         setStored("nanaki_token", myToken);
         if (typeof onAuthOk === "function") onAuthOk();
@@ -92,6 +89,7 @@ function handleMsg(msg) {
         onRoomList(msg.rooms);
         return;
     }
+    // 新协议：room_created 格式为 {room_id, max_players, started}，无 player_id 和 res
     if (type === "room_created" && typeof onRoomCreated === "function") {
         onRoomCreated(msg);
         return;
@@ -108,8 +106,9 @@ function handleMsg(msg) {
         onPlayerLeft(msg);
         return;
     }
-    if (type === "player_name" && typeof onPlayerName === "function") {
-        onPlayerName(msg);
+    // 新协议：player_name → player_name_changed
+    if (type === "player_name_changed" && typeof onPlayerNameChanged === "function") {
+        onPlayerNameChanged(msg);
         return;
     }
     if (type === "player_ready" && typeof onPlayerReady === "function") {
@@ -142,6 +141,7 @@ function handleMsg(msg) {
         onPlayerFinish(msg);
         return;
     }
+    // 新协议：game_over 用 ranking 数组，没有 winner_id
     if (type === "game_over" && typeof onGameOver === "function") {
         onGameOver(msg);
         return;
