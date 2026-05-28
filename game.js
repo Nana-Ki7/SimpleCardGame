@@ -26,11 +26,11 @@ const dom = {
     leaveBtn: document.getElementById("leave-btn"),
 };
 
-let selectedCards = []; // 当前选中牌的索引
+let selectedCards = [];
 
-// ===== 认证成功后加入房间 =====
+// 新协议：auth_ok 不再返回 player_id，通过 token 对应玩家身份
+// 登录后立即加入房间
 window.onAuthOk = function() {
-    // 加入房间
     send({ type: "join_room", room_id: roomId });
     loadNick();
 };
@@ -51,7 +51,8 @@ function updatePlayers() {
             slot.querySelector(".player-status").textContent = p.ready ? "✓ 已准备" : "";
             slot.querySelector(".player-cards-left").textContent = p.cardsLeft != null ? `${p.cardsLeft}张` : "";
             slot.classList.toggle("player-active", p.isActive);
-            if (p.id === myId) slot.querySelector(".player-name").style.color = "#ffd700";
+            // 用 token 标识自己（新协议无 player_id）
+            slot.querySelector(".player-name").style.color = p.isMe ? "#ffd700" : "";
         } else {
             slot.querySelector(".player-name").textContent = "-";
             slot.querySelector(".player-status").textContent = "";
@@ -63,20 +64,23 @@ function updatePlayers() {
 
 // ===== 房间事件 =====
 window.onPlayerJoined = function(msg) {
-    const p = { id: msg.player_id, name: msg.player_name || `玩家${msg.player_id}`, ready: false };
-    roomPlayers.push(p);
+    roomPlayers.push({ 
+        id: msg.player_id, 
+        name: msg.player_name || `玩家${msg.player_id}`, 
+        ready: false 
+    });
     updatePlayers();
     dom.statusText.textContent = `等待中 (${msg.player_count}/4)`;
 };
 
 window.onPlayerLeft = function(msg) {
     roomPlayers = roomPlayers.filter(p => p.id !== msg.player_id);
-    // 重新填充空位
     while (roomPlayers.length < 4) roomPlayers.push(null);
     updatePlayers();
 };
 
-window.onPlayerName = function(msg) {
+// 新协议：player_name → player_name_changed
+window.onPlayerNameChanged = function(msg) {
     const p = roomPlayers.find(x => x && x.id === msg.player_id);
     if (p) p.name = msg.name;
     updatePlayers();
@@ -107,11 +111,9 @@ window.onGameStart = function(msg) {
 
 // ===== 轮到谁 =====
 window.onYourTurn = function(msg) {
-    // 更新活跃玩家
     roomPlayers.forEach(p => { if (p) p.isActive = (p.id === msg.player_id); });
     updatePlayers();
 
-    // 显示上一次出的牌
     if (msg.last_play && msg.last_play.length > 0) {
         dom.lastPlayArea.innerHTML = msg.last_play.map(c =>
             `<img src="${cardImg(c.num, c.suit)}" alt="card">`
@@ -120,14 +122,29 @@ window.onYourTurn = function(msg) {
         dom.lastPlayArea.innerHTML = "";
     }
 
-    if (msg.player_id === myId) {
-        dom.turnHint.textContent = msg.is_free ? "自由出牌（清牌桌）" : "轮到你了";
+    // 新协议：用 player_id 判断是否是我 —— 通过 token 对应，暂用比对 
+    // 这里需要后端在 your_turn 时能让我知道哪个 id 是我
+    // 临时方案：看 last_player 或 player_id 是否等于某个已知的我的 id
+    // 后端 join_room 时返回 player_id，我们存一下
+    if (msg.player_id === myPlayerId) {
+        dom.turnHint.textContent = msg.is_free ? "自由出牌" : "轮到你了";
         dom.handActions.classList.remove("hidden");
     } else {
         const p = roomPlayers.find(x => x && x.id === msg.player_id);
         dom.turnHint.textContent = `等待 ${p ? p.name : '对方'} 出牌...`;
         dom.handActions.classList.add("hidden");
     }
+};
+
+// 新协议：room_joined 时记录自己的 player_id
+let myPlayerId = null;
+
+// 覆盖 lobby.js 的 onRoomJoined（game.html 会先加载 ws.js 再加载 game.js）
+window.onRoomJoined = function(msg) {
+    // 协议里 room_joined 没有 player_id，暂时用已知方式
+    // 如果后端 room_joined 返回 player_id，这里存一下
+    // 否则通过 token 无法知道自己在 roomPlayers 里的 id
+    // 临时：等待后端完善
 };
 
 // ===== 手牌渲染 =====
@@ -137,16 +154,12 @@ function renderHand() {
         return `<img src="${cardImg(c.num, c.suit)}" class="${sel}" data-idx="${i}" alt="card">`;
     }).join("");
 
-    // 点击选牌
     dom.handCards.querySelectorAll("img").forEach(img => {
         img.addEventListener("click", () => {
             const idx = parseInt(img.dataset.idx);
             const pos = selectedCards.indexOf(idx);
-            if (pos === -1) {
-                selectedCards.push(idx);
-            } else {
-                selectedCards.splice(pos, 1);
-            }
+            if (pos === -1) selectedCards.push(idx);
+            else selectedCards.splice(pos, 1);
             renderHand();
         });
     });
@@ -168,9 +181,7 @@ dom.passBtn.addEventListener("click", () => {
 
 // ===== 出牌结果 =====
 window.onPlayResult = function(msg) {
-    // 如果是我出的，从手牌移除
-    if (msg.player_id === myId) {
-        // 按 num,suit 匹配移除（简单处理）
+    if (msg.player_id === myPlayerId) {
         msg.cards.forEach(c => {
             const idx = myHand.findIndex(h => h.num === c.num && h.suit === c.suit);
             if (idx !== -1) myHand.splice(idx, 1);
@@ -178,11 +189,9 @@ window.onPlayResult = function(msg) {
         renderHand();
         dom.handActions.classList.add("hidden");
     }
-    // 更新牌面
     dom.lastPlayArea.innerHTML = msg.cards.map(c =>
         `<img src="${cardImg(c.num, c.suit)}" alt="card">`
     ).join("");
-    // 更新剩余牌数
     const p = roomPlayers.find(x => x && x.id === msg.player_id);
     if (p) p.cardsLeft = msg.cards_left;
     updatePlayers();
@@ -190,7 +199,7 @@ window.onPlayResult = function(msg) {
 };
 
 window.onPlayInvalid = function(msg) {
-    alert("出牌无效：" + (msg.reason || "不合法的牌型"));
+    alert("出牌无效：" + (msg.message || "不合法的牌型"));
 };
 
 window.onPlayerPass = function(msg) {
@@ -203,8 +212,11 @@ window.onPlayerFinish = function(msg) {
     dom.turnHint.textContent = `${p ? p.name : '玩家'} 出完了！第 ${msg.rank} 名`;
 };
 
+// 新协议：game_over 用 ranking 数组，不用 winner_id
 window.onGameOver = function(msg) {
-    const winner = roomPlayers.find(x => x && x.id === msg.winner_id);
+    const ranking = msg.ranking || [];
+    const winnerId = ranking[0];
+    const winner = roomPlayers.find(x => x && x.id === winnerId);
     dom.turnHint.textContent = `游戏结束！${winner ? winner.name : '玩家'} 获胜！`;
     dom.handActions.classList.add("hidden");
     selectedCards = [];
@@ -222,11 +234,11 @@ function sendChat() {
 }
 
 window.onChatMsg = function(msg) {
-    const isMe = msg.player_id === myId;
+    const isMe = msg.player_id === myPlayerId;
     const name = isMe ? myName : (msg.player_name || `玩家${msg.player_id}`);
     const el = document.createElement("div");
     el.className = "chat-msg";
-    el.innerHTML = `<span class="sender ${isMe ? 'me' : ''}">${name}:</span>${escapeHtml(msg.text)}`;
+    el.innerHTML = `<span class="sender ${isMe ? 'me' : ''}">${escapeHtml(name)}:</span>${escapeHtml(msg.text)}`;
     dom.chatMsgs.appendChild(el);
     dom.chatMsgs.scrollTop = dom.chatMsgs.scrollHeight;
 };
@@ -242,5 +254,5 @@ dom.leaveBtn.addEventListener("click", () => {
 });
 
 window.onError = function(msg) {
-    console.warn("server error:", msg.message);
+    console.warn("server error:", msg.message || msg.code);
 };
