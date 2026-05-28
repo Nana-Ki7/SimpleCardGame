@@ -46,20 +46,21 @@ window.onRoomList = function(rooms) {
         container.innerHTML = '<div class="empty-msg">暂无房间，点击上方创建</div>';
         return;
     }
+    // 新协议：room 对象增加 max_players 字段
     container.innerHTML = rooms.map(r => {
+        const max = r.max_players || 4;
         const tag = r.started
             ? '<span class="tag tag-playing">游戏中</span>'
             : '<span class="tag tag-ready">等待中</span>';
-        const disabled = r.started || r.player_count >= 4 ? "disabled" : "";
+        const disabled = r.started || r.player_count >= max ? "disabled" : "";
         return `<div class="room-item">
-            <div class="room-info">房间 #${r.room_id} (${r.player_count}/4) ${tag}</div>
+            <div class="room-info">房间 #${r.room_id} (${r.player_count}/${max}) ${tag}</div>
             <button class="btn-join" data-room="${r.room_id}" ${disabled}>
-                ${r.started ? "已开始" : r.player_count >= 4 ? "已满" : "加入"}
+                ${r.started ? "已开始" : r.player_count >= max ? "已满" : "加入"}
             </button>
         </div>`;
     }).join("");
 
-    // 绑定加入按钮
     container.querySelectorAll(".btn-join").forEach(btn => {
         btn.addEventListener("click", () => {
             const roomId = parseInt(btn.dataset.room);
@@ -73,6 +74,7 @@ document.getElementById("create-room-btn").addEventListener("click", () => {
     send({ type: "create_room" });
 });
 
+// 新协议：room_created 无 player_id 和 res
 window.onRoomCreated = function(msg) {
     window.location.href = `game.html?room=${msg.room_id}`;
 };
@@ -81,5 +83,4 @@ window.onRoomJoined = function(msg) {
     window.location.href = `game.html?room=${msg.room_id}`;
 };
 
-// 自动刷新房间列表
 setInterval(refreshRooms, 5000);
