@@ -2,7 +2,6 @@
  * lobby.js — 大厅逻辑
  */
 
-// ===== 保存昵称 =====
 const nickInput = document.getElementById("nick-input");
 const saveNickBtn = document.getElementById("save-nick-btn");
 
@@ -14,6 +13,12 @@ function loadNick() {
     }
 }
 
+// 后端新增：change_name_ok 确认昵称修改成功
+window.onChangeNameOk = function(msg) {
+    myName = msg.name;
+    setStored("nanaki_name", myName);
+};
+
 saveNickBtn.addEventListener("click", () => {
     const name = nickInput.value.trim();
     if (!name) return;
@@ -22,20 +27,17 @@ saveNickBtn.addEventListener("click", () => {
     send({ type: "change_name", name: name });
 });
 
-// ===== 切换页面 =====
 function showLobby() {
     document.getElementById("login-section").classList.add("hidden");
     document.getElementById("lobby-section").classList.remove("hidden");
 }
 
-// ===== 认证成功后 =====
 window.onAuthOk = function() {
     loadNick();
     showLobby();
     refreshRooms();
 };
 
-// ===== 刷新房间列表 =====
 function refreshRooms() {
     send({ type: "get_rooms" });
 }
@@ -46,7 +48,6 @@ window.onRoomList = function(rooms) {
         container.innerHTML = '<div class="empty-msg">暂无房间，点击上方创建</div>';
         return;
     }
-    // 新协议：room 对象增加 max_players 字段
     container.innerHTML = rooms.map(r => {
         const max = r.max_players || 4;
         const tag = r.started
@@ -69,12 +70,10 @@ window.onRoomList = function(rooms) {
     });
 };
 
-// ===== 创建房间 =====
 document.getElementById("create-room-btn").addEventListener("click", () => {
     send({ type: "create_room" });
 });
 
-// 新协议：room_created 无 player_id 和 res
 window.onRoomCreated = function(msg) {
     window.location.href = `game.html?room=${msg.room_id}`;
 };
