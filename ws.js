@@ -15,10 +15,10 @@ const NUM_NAMES = [
 let ws = null;
 let myToken = null;
 let myName = "";
-let inRoom = null;    // 当前房间号
+let inRoom = null;
 let roomPlayers = []; // [{id, name, ready, cardsLeft}]
-let myHand = [];      // 我的手牌 [{num, suit}]
-let lastPlay = [];    // 桌面上的牌
+let myHand = [];
+let lastPlay = [];
 
 // ===== 工具函数 =====
 
@@ -71,25 +71,38 @@ function setStatus(state) {
     text.textContent = map[state] || state;
 }
 
-// ===== 消息分发（按 PROTOCOL.md 对齐） =====
+// ===== 消息分发 =====
 
 function handleMsg(msg) {
     const type = msg.type;
 
-    // 认证 — 新协议：auth_ok 只有 token，没有 player_id
     if (type === "auth_ok") {
         myToken = msg.token;
         setStored("nanaki_token", myToken);
+        // auth_ok 现在可能带 name 字段（后端已添加）
+        if (msg.name && msg.name !== "NONE") {
+            myName = msg.name;
+            setStored("nanaki_name", myName);
+        }
         if (typeof onAuthOk === "function") onAuthOk();
         return;
     }
 
-    // 房间/玩家相关
+    // 后端新增：change_name_ok
+    if (type === "change_name_ok" && typeof onChangeNameOk === "function") {
+        onChangeNameOk(msg);
+        return;
+    }
+    // 后端新增：leave_room_ok
+    if (type === "leave_room_ok" && typeof onLeaveRoomOk === "function") {
+        onLeaveRoomOk(msg);
+        return;
+    }
+
     if (type === "room_list" && typeof onRoomList === "function") {
         onRoomList(msg.rooms);
         return;
     }
-    // 新协议：room_created 格式为 {room_id, max_players, started}，无 player_id 和 res
     if (type === "room_created" && typeof onRoomCreated === "function") {
         onRoomCreated(msg);
         return;
@@ -106,7 +119,6 @@ function handleMsg(msg) {
         onPlayerLeft(msg);
         return;
     }
-    // 新协议：player_name → player_name_changed
     if (type === "player_name_changed" && typeof onPlayerNameChanged === "function") {
         onPlayerNameChanged(msg);
         return;
@@ -116,7 +128,6 @@ function handleMsg(msg) {
         return;
     }
 
-    // 游戏
     if (type === "game_start" && typeof onGameStart === "function") {
         onGameStart(msg);
         return;
@@ -141,13 +152,11 @@ function handleMsg(msg) {
         onPlayerFinish(msg);
         return;
     }
-    // 新协议：game_over 用 ranking 数组，没有 winner_id
     if (type === "game_over" && typeof onGameOver === "function") {
         onGameOver(msg);
         return;
     }
 
-    // 聊天/错误
     if (type === "chat" && typeof onChatMsg === "function") {
         onChatMsg(msg);
         return;
