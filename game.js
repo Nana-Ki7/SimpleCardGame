@@ -194,7 +194,8 @@ window.onPlayResult = function(msg) {
 };
 
 window.onPlayInvalid = function(msg) {
-    alert("出牌无效：" + (msg.message || "不合法的牌型"));
+    // 后端没有 play_invalid type，通过 error 处理
+    // 此函数保留但不再由 ws.js 分发
 };
 
 window.onPlayerPass = function(msg) {
@@ -248,5 +249,9 @@ dom.leaveBtn.addEventListener("click", () => {
 });
 
 window.onError = function(msg) {
-    console.warn("server error:", msg.message || msg.code);
+    if (msg.code === 1004 || msg.message === "invalid_play") {
+        alert("出牌无效：" + (msg.message || "不合法的牌型"));
+    } else {
+        console.warn("server error:", msg.code, msg.message);
+    }
 };
