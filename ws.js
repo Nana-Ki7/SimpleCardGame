@@ -140,10 +140,6 @@ function handleMsg(msg) {
         onPlayResult(msg);
         return;
     }
-    if (type === "play_invalid" && typeof onPlayInvalid === "function") {
-        onPlayInvalid(msg);
-        return;
-    }
     if (type === "player_pass" && typeof onPlayerPass === "function") {
         onPlayerPass(msg);
         return;
