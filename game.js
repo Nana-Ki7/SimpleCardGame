@@ -45,7 +45,12 @@ function updatePlayers() {
         if (p) {
             slot.querySelector(".player-name").textContent = p.name || `玩家${p.id}`;
             slot.querySelector(".player-status").textContent = p.ready ? "✓ 已准备" : "";
-            slot.querySelector(".player-cards-left").textContent = p.cardsLeft != null ? `${p.cardsLeft}张` : "";
+            const leftEl = slot.querySelector(".player-cards-left");
+            leftEl.textContent = p.cardsLeft != null ? `${p.cardsLeft}张` : "";
+            // 身份标记：红桃2队/黑桃K队
+            if (p.team) {
+                leftEl.textContent += (p.team === "red" ? " ♥" : " ♠");
+            }
             slot.classList.toggle("player-active", p.isActive);
             slot.querySelector(".player-name").style.color = p.isMe ? "#ffd700" : "";
         } else {
@@ -127,15 +132,17 @@ window.onYourTurn = function(msg) {
             `<img src="${cardImg(c.num, c.suit)}" alt="card">`
         ).join("");
     } else {
-        dom.lastPlayArea.innerHTML = "";
+        dom.lastPlayArea.innerHTML = "<div class='table-clear-hint'>牌桌已清</div>";
     }
-
+    dom.turnHint.className = "turn-highlight";
     if (msg.player_id === myPlayerId) {
-        dom.turnHint.textContent = msg.is_free ? "自由出牌" : "轮到你了";
+        dom.turnHint.textContent = msg.is_free ? "🎯 自由出牌" : "🎯 轮到你了！";
         dom.handActions.classList.remove("hidden");
+        dom.playBtn.disabled = false;
+        dom.passBtn.disabled = false;
     } else {
         const p = roomPlayers.find(x => x && x.id === msg.player_id);
-        dom.turnHint.textContent = `等待 ${p ? p.name : '对方'} 出牌...`;
+        dom.turnHint.textContent = `⏳ 等待 ${p ? p.name : '对方'} 出牌...`;
         dom.handActions.classList.add("hidden");
     }
 };
@@ -188,9 +195,19 @@ window.onPlayResult = function(msg) {
         `<img src="${cardImg(c.num, c.suit)}" alt="card">`
     ).join("");
     const p = roomPlayers.find(x => x && x.id === msg.player_id);
-    if (p) p.cardsLeft = msg.cards_left;
+    if (p) {
+        p.cardsLeft = msg.cards_left;
+        // 标记身份（红桃2或黑桃K）
+        if (msg.cards) {
+            for (const c of msg.cards) {
+                if (c.num === 12 && c.suit === 3) p.team = "red";   // 红桃2
+                if (c.num === 10 && c.suit === 2) p.team = "spade"; // 黑桃K
+            }
+        }
+    }
     updatePlayers();
     dom.turnHint.textContent = "";
+    dom.turnHint.className = "";
 };
 
 window.onPlayInvalid = function(msg) {
@@ -212,8 +229,10 @@ window.onGameOver = function(msg) {
     const ranking = msg.ranking || [];
     const winnerId = ranking[0];
     const winner = roomPlayers.find(x => x && x.id === winnerId);
-    dom.turnHint.textContent = `游戏结束！${winner ? winner.name : '玩家'} 获胜！`;
+    dom.turnHint.textContent = `🏆 游戏结束！${winner ? winner.name : '玩家'} 获胜！`;
+    dom.turnHint.className = "gameover-highlight";
     dom.handActions.classList.add("hidden");
+    document.getElementById("hand-cards").innerHTML = "";
     selectedCards = [];
 };
 
