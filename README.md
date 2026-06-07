@@ -25,30 +25,30 @@ g++ -std=c++17 server.cpp -o server -lwebsocketpp -lpthread
 
 ### 客户端 → 服务端
 
-| type | 说明 |
-|------|------|
-| `create_room` | 创建房间 |
-| `join_room` | 加入房间 |
-| `leave_room` | 离开房间 |
-| `ready` | 准备 |
-| `play` | 出牌 |
-| `pass` | 不出 |
-| `get_rooms` | 获取房间列表 |
-| `chat` | 聊天 |
+| type          | 说明         |
+| ------------- | ------------ |
+| `create_room` | 创建房间     |
+| `join_room`   | 加入房间     |
+| `leave_room`  | 离开房间     |
+| `ready`       | 准备         |
+| `play`        | 出牌         |
+| `pass`        | 不出         |
+| `get_rooms`   | 获取房间列表 |
+| `chat`        | 聊天         |
 
 ### 服务端 → 客户端
 
-| type | 说明 |
-|------|------|
-| `room_created` | 房间创建成功 |
-| `player_joined` | 有玩家加入 |
-| `player_left` | 有玩家离开 |
-| `game_start` | 游戏开始 |
-| `your_turn` | 轮到你了 |
-| `play_result` | 出牌结果 |
-| `game_over` | 游戏结束 |
-| `error` | 错误提示 |
-| `chat` | 聊天消息 |
+| type            | 说明         |
+| --------------- | ------------ |
+| `room_created`  | 房间创建成功 |
+| `player_joined` | 有玩家加入   |
+| `player_left`   | 有玩家离开   |
+| `game_start`    | 游戏开始     |
+| `your_turn`     | 轮到你了     |
+| `play_result`   | 出牌结果     |
+| `game_over`     | 游戏结束     |
+| `error`         | 错误提示     |
+| `chat`          | 聊天消息     |
 
 ## 项目结构
 
@@ -57,6 +57,22 @@ g++ -std=c++17 server.cpp -o server -lwebsocketpp -lpthread
 ├── server.cpp   # WebSocket 服务端
 └── output/      # 编译输出
 ```
+## 还在修的bug/没做的功能/小建议
+- 出牌和pass的计时器似乎没停（
+- 同一个人不能连续出牌俩次
+- 没有显示当前出牌人
+- 当前牌桌上的牌没显示好
+- 布局不好看
+- 没有出牌后标记身份
+- 无法重新连接
+- 出牌在右边，pass放左边比较好
+- 游戏一开始所有人都跳出出牌界面了（bug)
+- 自己应该在面前才对
+- 上下玩家的区域过大
+- 出的牌最好不要放到框内
+- 有玩家pass要显示pass
+- 要显示每个玩家的剩余牌数
+- 前端也要放个30s计时器
 
 ## 依赖
 
